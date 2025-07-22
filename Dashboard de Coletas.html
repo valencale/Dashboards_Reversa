@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard de Performance de Coletas</title>
+    
+    <!-- Carrega o Tailwind CSS para estilização -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Carrega a biblioteca de ícones Lucide -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <!-- Carrega a biblioteca de gráficos Chart.js e o plugin de datalabels -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
+
+
+    <style>
+        /* Estilo para a fonte e para o header fixo da tabela */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;800&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f9fafb; /* bg-gray-50 */
+        }
+        .dark body {
+             background-color: #111827; /* dark:bg-gray-900 */
+        }
+        .sticky-col {
+            position: -webkit-sticky; /* For Safari */
+            position: sticky;
+            left: 0;
+            z-index: 10;
+        }
+        thead .sticky-col {
+            z-index: 20;
+        }
+        /* Estilos para o tooltip do gráfico */
+        .sparkline-tooltip {
+            position: absolute;
+            background-color: #1f2937; /* bg-gray-800 */
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            pointer-events: none; /* Impede que o tooltip intercepte eventos do mouse */
+            display: none; /* Começa escondido */
+            white-space: nowrap;
+            z-index: 30;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+        /* Estilo para as abas */
+        .tab-inactive {
+            color: #9ca3af; /* text-gray-400 */
+            border-color: transparent;
+        }
+        .tab-inactive:hover {
+            color: #d1d5db; /* hover:text-gray-300 */
+            border-color: #4b5563; /* hover:border-gray-600 */
+        }
+        .tab-active {
+            border-color: #3b82f6; /* border-blue-500 */
+            color: #3b82f6; /* text-blue-500 */
+        }
+    </style>
+</head>
+<body class="bg-gray-50 dark:bg-gray-900">
+
+    <div class="p-4 sm:p-6 lg:p-8 font-sans">
+        <div class="max-w-7xl mx-auto">
+            <header class="mb-4">
+                <h1 class="text-3xl font-bold text-gray-800 dark:text-white">Dashboard de Performance de Coletas</h1>
+                <p class="text-gray-500 dark:text-gray-400 mt-1">Análise de desempenho e previsão dos canais para Julho.</p>
+            </header>
+
+            <!-- Sistema de Abas -->
+            <div class="mb-8 border-b border-gray-200 dark:border-gray-700">
+                <ul class="flex flex-wrap -mb-px text-sm font-medium text-center" id="main-tabs" role="tablist">
+                    <li class="mr-2" role="presentation">
+                        <button class="inline-block p-4 border-b-2 rounded-t-lg tab-active" id="dashboard-tab" type="button" role="tab">Dashboard</button>
+                    </li>
+                    <li class="mr-2" role="presentation">
+                        <button class="inline-block p-4 border-b-2 rounded-t-lg tab-inactive" id="forecast-tab" type="button" role="tab">Previsão (Forecast)</button>
+                    </li>
+                    <li class="mr-2" role="presentation">
+                        <button class="inline-block p-4 border-b-2 rounded-t-lg tab-inactive" id="placar-tab" type="button" role="tab">Placar Reversa</button>
+                    </li>
+                     <li class="mr-2" role="presentation">
+                        <button class="inline-block p-4 border-b-2 rounded-t-lg tab-inactive" id="resultados-tab" type="button" role="tab">Resultados Premium</button>
+                    </li>
+                </ul>
+            </div>
+
+            <!-- Conteúdo das Abas -->
+            <div id="tab-content-container">
+                <!-- Aba Dashboard -->
+                <div id="dashboard-content" role="tabpanel">
+                    <div id="kpi-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8"></div>
+                    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-lg overflow-hidden border border-gray-200 dark:border-gray-700">
+                        <div class="overflow-x-auto"><table class="w-full text-sm text-left text-gray-500 dark:text-gray-400"><thead class="text-xs text-gray-700 uppercase bg-gray-100 dark:bg-gray-700 dark:text-gray-300" id="dashboard-table-head"></thead><tbody id="performance-table-body"></tbody></table></div>
+                    </div>
+                </div>
+
+                <!-- Aba Previsão -->
+                <div id="forecast-content" class="hidden" role="tabpanel">
+                     <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-lg overflow-hidden border border-gray-200 dark:border-gray-700">
+                        <div class="overflow-x-auto"><table class="w-full text-sm text-left text-gray-500 dark:text-gray-400"><thead class="text-xs text-gray-700 uppercase bg-gray-100 dark:bg-gray-700 dark:text-gray-300" id="forecast-table-head"></thead><tbody id="forecast-table-body"></tbody></table></div>
+                    </div>
+                </div>
+
+                <!-- Aba Placar Reversa -->
+                <div id="placar-content" class="hidden" role="tabpanel">
+                    <!-- Conteúdo será gerado pelo JS -->
+                </div>
+
+                <!-- Aba Resultados Premium -->
+                <div id="resultados-content" class="hidden" role="tabpanel">
+                    <div class="grid grid-cols-1 lg:grid-cols-1 gap-8">
+                        <div class="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700">
+                            <h3 class="text-lg font-semibold text-gray-800 dark:text-white mb-2">Resultados de Coletas Premium - Mês a Mês</h3>
+                            <div id="coletasPremiumChart-legend" class="flex justify-center items-center flex-wrap gap-x-6 gap-y-2 mb-4"></div>
+                            <div class="relative h-96">
+                                <canvas id="coletasPremiumChart"></canvas>
+                            </div>
+                        </div>
+                        <div class="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700">
+                            <h3 class="text-lg font-semibold text-gray-800 dark:text-white mb-2">Efetividade Reversa - Mês a Mês</h3>
+                            <div id="efetividadeReversaChart-legend" class="flex justify-center items-center flex-wrap gap-x-6 gap-y-2 mb-4"></div>
+                            <div class="relative h-96">
+                                <canvas id="efetividadeReversaChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+             <footer class="text-center mt-8 text-xs text-gray-400">
+                <p>Dashboard gerado com HTML, Tailwind CSS & JavaScript.</p>
+            </footer>
+        </div>
+    </div>
+
+    <script>
+        // Use um arquivo dados.js separado para facilitar a atualização
+        // Exemplo de como os dados devem estar em dados.js:
+        /*
+        const performanceData = [ ... ];
+        const placarReversaData = { ... };
+        const resultadosPremiumData = { ... };
+        */
+    </script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // --- DADOS (Idealmente viriam de um arquivo dados.js) ---
+            const performanceData = [
+              { id: 1, canal: 'Locatec', mesesAnteriores: 1911, realAte16: 11217, backlog: 13128, coletasDiarias: [571, 1031, 952, 742, 371, 90, 769, 895, 595, 934, 1087, 183, 279, 940, 953, 825] },
+              { id: 2, canal: 'Rápido Latino', mesesAnteriores: 2896, realAte16: 8557, backlog: 11253, coletasDiarias: [488, 415, 1132, 470, 215, 227, 567, 799, 516, 532, 542, 220, 160, 822, 897, 615] },
+              { id: 3, canal: 'T&C', mesesAnteriores: 415, realAte16: 1184, backlog: 1599, coletasDiarias: [117, 71, 67, 135, 0, 67, 117, 82, 89, 118, 0, 0, 61, 107, 153] },
+              { id: 4, canal: 'Correios', mesesAnteriores: 3244, realAte16: 13251, backlog: 16495, coletasDiarias: [769, 493, 833, 896, 2, 824, 1485, 1004, 1430, 1527, 5, 1864, 1222, 1117] },
+              { id: 5, canal: 'Eu Entrego', mesesAnteriores: 40, realAte16: 2481, backlog: 2521, coletasDiarias: [100, 103, 61, 71, 0, 123, 166, 245, 788, 239, 0, 339, 147, 99] },
+              { id: 6, canal: 'Lojas', mesesAnteriores: 3903, realAte16: 15371, backlog: 19274, coletasDiarias: [842, 986, 1044, 1117, 996, 300, 1101, 1141, 799, 1167, 1117, 879, 300, 1204, 1194, 1184] },
+              { id: 7, canal: 'Antec', mesesAnteriores: 127, realAte16: 2247, backlog: 2374, coletasDiarias: [143, 166, 125, 173, 132, 0, 167, 166, 0, 292, 222, 105, 0, 182, 215, 159] },
+              { id: 8, canal: 'Técnicos', mesesAnteriores: 0, realAte16: 1718, backlog: 1718, coletasDiarias: [0, 0, 45, 0, 0, 0, 0, 861, 0, 3, 223, 0, 0, 0, 0, 586] },
+            ];
+            const dias = Array.from({ length: 16 }, (_, i) => `${String(i + 1).padStart(2, '0')}/jul`);
+
+            const placarReversaData = {
+                somente2025: {
+                    labels: ["JAN", "FEV", "MAR", "ABR", "MAI", "JUN"],
+                    geral: { demanda: 800422, efetContrato: 0.64, efetReal: 0.61, devPrevista: 510716, devReal: 488168, saldo: -22548 },
+                    rows: [
+                        { label: "Demanda Premium", geralKey: "demanda", values: [135419, 131547, 131157, 132576, 140961, 128762] },
+                        { label: "Efetividade de Coleta - Contrato", geralKey: "efetContrato", values: [0.60, 0.64, 0.64, 0.64, 0.64, 0.67], format: 'percent' },
+                        { label: "Efetividade Real", geralKey: "efetReal", values: [0.49, 0.62, 0.61, 0.56, 0.67, 0.71], format: 'percent' },
+                        { label: "Devolução Prevista Premium", geralKey: "devPrevista", values: [81251, 84190, 83940, 84849, 90215, 86271] },
+                        { label: "Devolução Real Premium", geralKey: "devReal", values: [66499, 81224, 79705, 74460, 94954, 91326] },
+                        { label: "Saldo", geralKey: "saldo", values: [-14752, -2966, -4235, -10339, 4739, 5055], format: 'saldo' },
+                    ]
+                },
+                inicioProjeto: {
+                    labels: ["out/24", "nov/24", "dez/24", "jan/25", "fev/25", "mar/25", "abr/25", "mai/25", "jun/25"],
+                    geral: { demanda: 1185326, efetContrato: 0.63, efetReal: 0.61, devPrevista: 741658, devReal: 730427, saldo: -11232 },
+                    rows: [
+                        { label: "Demanda Premium Geral", geralKey: "demanda", values: [133603, 127780, 123521, 135419, 131547, 131157, 132576, 140961, 128762] },
+                        { label: "Efetividade de Coleta - Contrato", geralKey: "efetContrato", values: [0.60, 0.60, 0.60, 0.64, 0.64, 0.64, 0.64, 0.67, 0.67], format: 'percent' },
+                        { label: "Efetividade Real", geralKey: "efetReal", values: [0.65, 0.62, 0.62, 0.49, 0.62, 0.61, 0.56, 0.67, 0.71], format: 'percent' },
+                        { label: "Devolução Prevista Premium", geralKey: "devPrevista", values: [80162, 76668, 74113, 81251, 84190, 83940, 84849, 90215, 86271] },
+                        { label: "Devolução Real Premium", geralKey: "devReal", values: [87393, 78635, 76231, 66499, 81224, 79705, 74460, 94954, 91326] },
+                        { label: "Saldo", geralKey: "saldo", values: [7231, 1967, 2118, -14752, -2966, -4235, -10389, 4739, 5055], format: 'saldo' },
+                    ]
+                }
+            };
+
+            const resultadosPremiumData = {
+                labels: ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"],
+                coletasPremium: [
+                    { year: 2023, data: [74, 81, 86, 84, 95, 91, 102, 91, 94, 87, 79, 76] },
+                    { year: 2024, data: [66, 73, 83, 99, 84, 81, null, 83, null, null, null, null] },
+                    { year: 2025, data: [52, 69, 80, 74, 65, 59, 67, null, null, null, null, null] } 
+                ],
+                efetividadeReversa: [
+                    { year: 2023, data: [0.57, 0.66, 0.69, 0.75, 0.67, 0.71, 0.70, 0.64, 0.70, 0.65, 0.59, 0.57] },
+                    { year: 2024, data: [0.34, 0.50, 0.61, 0.68, 0.59, null, 0.64, null, null, null, null, null] },
+                    { year: 2025, data: [0.49, 0.62, 0.59, 0.57, 0.51, 0.49, 0.49, null, null, null, null, null] } 
+                ]
+            };
+
+            // --- FUNÇÕES AUXILIARES ---
+            const formatNumber = (num) => (num !== undefined && num !== null) ? num.toLocaleString('pt-BR') : '-';
+            const formatPercent = (num) => (num !== undefined && num !== null) ? `${(num * 100).toFixed(0)}%` : '-';
+            const getSaldoClass = (num) => num < 0 ? 'text-red-500' : 'text-green-500';
+            const getMetaColorClass = (percent) => (percent >= 1.0) ? 'text-green-500' : (percent >= 0.9) ? 'text-yellow-500' : 'text-red-500';
+
+            const createSparkline = (data, width = 120, height = 30, color = "currentColor", dataId) => {
+                if (!data || data.length < 2) return '<div class="w-full h-full flex items-center justify-center text-gray-400 text-xs">Dados insuficientes</div>';
+                
+                const maxVal = Math.max(...data);
+                const minVal = Math.min(...data);
+                const range = maxVal - minVal === 0 ? 1 : maxVal - minVal;
+
+                const points = data.map((d, i) => {
+                    const x = (i / (data.length - 1)) * width;
+                    const y = height - ((d - minVal) / range) * height;
+                    return `${x.toFixed(2)},${y.toFixed(2)}`;
+                }).join(' ');
+
+                const zeroDots = data.map((d, i) => {
+                    if (d === 0) {
+                        const x = (i / (data.length - 1)) * width;
+                        const y = height - ((d - minVal) / range) * height;
+                        return `<circle cx="${x.toFixed(2)}" cy="${y.toFixed(2)}" r="2.5" fill="#ef4444" />`;
+                    }
+                    return '';
+                }).join('');
+
+                return `
+                    <div class="sparkline-container relative" data-id="${dataId}">
+                        <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" class="overflow-visible">
+                            <polyline fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" points="${points}" />
+                            ${zeroDots}
+                            <line class="sparkline-cursor-line" x1="0" y1="0" x2="0" y2="${height}" stroke="#9ca3af" stroke-width="1" style="display: none;" />
+                            <circle class="sparkline-cursor-dot" r="3" fill="${color}" style="display: none;" />
+                            <rect class="sparkline-overlay" width="${width}" height="${height}" fill="transparent" style="cursor: crosshair;"></rect>
+                        </svg>
+                        <div class="sparkline-tooltip"></div>
+                    </div>
+                `;
+            };
+
+            const createKpiCard = (title, value, iconName, colorClass, footer) => {
+                return `
+                    <div class="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 flex flex-col justify-between">
+                        <div>
+                            <div class="flex items-center justify-between mb-2">
+                                <p class="text-sm font-medium text-gray-500 dark:text-gray-400">${title}</p>
+                                <div class="p-2 rounded-full ${colorClass} bg-opacity-10">
+                                    <i data-lucide="${iconName}" class="w-5 h-5 ${colorClass}"></i>
+                                </div>
+                            </div>
+                            <p class="text-3xl font-bold text-gray-800 dark:text-gray-100">${value}</p>
+                        </div>
+                        ${footer ? `<p class="text-xs text-gray-400 dark:text-gray-500 mt-4">${footer}</p>` : ''}
+                    </div>
+                `;
+            };
+
+            // --- LÓGICA DE RENDERIZAÇÃO DAS ABAS ---
+            function renderPlacarReversa() {
+                const container = document.getElementById('placar-content');
+                const { somente2025, inicioProjeto } = placarReversaData;
+
+                const createSection = (title, data) => {
+                    const saldoClass = getSaldoClass(data.geral.saldo);
+                    return `
+                        <div class="mb-12">
+                            <h2 class="text-2xl font-bold text-gray-800 dark:text-white mb-6">${title}</h2>
+                            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+                                ${createKpiCard('Demanda Premium Geral', formatNumber(data.geral.demanda), 'package', 'text-blue-500')}
+                                ${createKpiCard('Devolução Real Premium', formatNumber(data.geral.devReal), 'package-check', 'text-green-500')}
+                                ${createKpiCard('Saldo Geral', formatNumber(data.geral.saldo), 'scale', saldoClass)}
+                            </div>
+                            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                                <div class="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700">
+                                    <div class="relative h-96">
+                                        <canvas id="saldoChart-${title.replace(/\s+/g, '')}"></canvas>
+                                    </div>
+                                </div>
+                                <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-lg overflow-hidden border border-gray-200 dark:border-gray-700">
+                                    <div class="overflow-x-auto">
+                                        <table class="w-full text-sm">
+                                            <thead class="text-xs text-gray-700 uppercase bg-gray-100 dark:bg-gray-700 dark:text-gray-300">
+                                                <tr>
+                                                    <th class="px-4 py-3 sticky-col bg-gray-100 dark:bg-gray-700">Métrica</th>
+                                                    ${data.labels.map(l => `<th class="px-4 py-3 text-center">${l}</th>`).join('')}
+                                                    <th class="px-4 py-3 text-center">Geral</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                ${data.rows.map(row => `
+                                                    <tr class="border-b dark:border-gray-700">
+                                                        <th class="px-4 py-3 font-medium text-gray-900 dark:text-white sticky-col bg-white dark:bg-gray-800">${row.label}</th>
+                                                        ${row.values.map(val => `<td class="px-4 py-3 text-center text-gray-700 dark:text-gray-300 ${row.format === 'saldo' ? getSaldoClass(val) : ''}">${row.format === 'percent' ? formatPercent(val) : formatNumber(val)}</td>`).join('')}
+                                                        <td class="px-4 py-3 text-center font-bold text-gray-700 dark:text-gray-300 ${row.format === 'saldo' ? getSaldoClass(data.geral[row.geralKey]) : ''}">${row.format === 'percent' ? formatPercent(data.geral[row.geralKey]) : formatNumber(data.geral[row.geralKey])}</td>
+                                                    </tr>
+                                                `).join('')}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                };
+
+                container.innerHTML = createSection('Placar Geral - Somente 2025', somente2025) + createSection('Placar Geral - Desde o início do Projeto', inicioProjeto);
+                
+                initBarChart(`saldoChart-PlacarGeral-Somente2025`, 'Evolução do Saldo Mensal (2025)', somente2025);
+                initBarChart(`saldoChart-PlacarGeral-DesdeoiníciodoProjeto`, 'Evolução do Saldo Mensal (Global)', inicioProjeto);
+            }
+
+            function renderResultadosPremium() {
+                const { labels, coletasPremium, efetividadeReversa } = resultadosPremiumData;
+                const datasetsColetas = coletasPremium.map(yearData => ({
+                    label: yearData.year,
+                    data: yearData.data,
+                    fill: false,
+                    borderColor: yearData.year === 2023 ? '#3b82f6' : yearData.year === 2024 ? '#f97316' : '#16a34a',
+                    tension: 0.1,
+                    spanGaps: true
+                }));
+                const datasetsEfetividade = efetividadeReversa.map(yearData => ({
+                    label: yearData.year,
+                    data: yearData.data,
+                    fill: false,
+                    borderColor: yearData.year === 2023 ? '#3b82f6' : yearData.year === 2024 ? '#f97316' : '#16a34a',
+                    tension: 0.1,
+                    spanGaps: true
+                }));
+
+                initLineChart('coletasPremiumChart', labels, datasetsColetas, false);
+                initLineChart('efetividadeReversaChart', labels, datasetsEfetividade, true);
+            }
+
+            // --- FUNÇÕES DE GRÁFICO ---
+            let charts = {};
+            function initBarChart(canvasId, title, data) {
+                if (charts[canvasId]) charts[canvasId].destroy();
+                const ctx = document.getElementById(canvasId).getContext('2d');
+                const saldoData = data.rows.find(r => r.label === 'Saldo').values;
+                const saldoTotal = data.geral.saldo;
+                const saldoClass = getSaldoClass(saldoTotal);
+
+                charts[canvasId] = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: data.labels,
+                        datasets: [{
+                            label: 'Saldo Mensal',
+                            data: saldoData,
+                            backgroundColor: saldoData.map(d => d < 0 ? 'rgba(239, 68, 68, 0.6)' : 'rgba(34, 197, 94, 0.6)'),
+                            borderColor: saldoData.map(d => d < 0 ? 'rgba(239, 68, 68, 1)' : 'rgba(34, 197, 94, 1)'),
+                            borderWidth: 1
+                        }]
+                    },
+                    options: { 
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: { 
+                            y: { 
+                                ticks: { color: document.body.classList.contains('dark') ? 'white' : '#6b7280' },
+                                grid: { color: document.body.classList.contains('dark') ? '#374151' : '#e5e7eb' }
+                            },
+                            x: {
+                                ticks: { color: document.body.classList.contains('dark') ? 'white' : '#6b7280' },
+                                grid: { color: 'transparent' }
+                            }
+                        }, 
+                        plugins: { 
+                            legend: { display: false },
+                            title: {
+                                display: true,
+                                text: title,
+                                align: 'start',
+                                font: { size: 18, weight: '600' },
+                                color: document.body.classList.contains('dark') ? 'white' : '#1f2937'
+                            },
+                            subtitle: {
+                                display: true,
+                                text: `Saldo Total: ${formatNumber(saldoTotal)}`,
+                                align: 'start',
+                                color: saldoClass.includes('red') ? '#ef4444' : '#22c55e',
+                                font: { size: 14, weight: 'bold' },
+                                padding: { bottom: 10 }
+                            }
+                        } 
+                    }
+                });
+            }
+
+            function initLineChart(canvasId, labels, datasets, isPercent) {
+                if (charts[canvasId]) charts[canvasId].destroy();
+                const ctx = document.getElementById(canvasId).getContext('2d');
+                charts[canvasId] = new Chart(ctx, {
+                    type: 'line',
+                    data: { labels: labels, datasets: datasets },
+                    plugins: [ChartDataLabels],
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        interaction: { mode: 'index', intersect: false },
+                        scales: { 
+                            y: { 
+                                ticks: { 
+                                    callback: (value) => isPercent ? `${(value * 100).toFixed(0)}%` : value,
+                                    color: document.body.classList.contains('dark') ? 'white' : '#6b7280'
+                                },
+                                grid: { color: document.body.classList.contains('dark') ? '#374151' : '#e5e7eb' },
+                                max: isPercent ? 1 : undefined
+                            },
+                            x: {
+                                ticks: { color: document.body.classList.contains('dark') ? 'white' : '#6b7280' },
+                                grid: { color: document.body.classList.contains('dark') ? '#374151' : '#e5e7eb' }
+                            }
+                        },
+                        plugins: {
+                            datalabels: {
+                                display: true,
+                                align: 'top',
+                                color: document.body.classList.contains('dark') ? '#ffffff' : '#1f2937',
+                                font: {
+                                    size: 10,
+                                    weight: 'bold'
+                                },
+                                formatter: function(value, context) {
+                                    if (value === null) return '';
+                                    return isPercent ? `${(value * 100).toFixed(0)}%` : value;
+                                }
+                            },
+                            legend: {
+                                display: false // Desabilita a legenda padrão
+                            },
+                        }
+                    }
+                });
+                generateCustomLegend(charts[canvasId]);
+            }
+
+            function generateCustomLegend(chart) {
+                const legendContainer = document.getElementById(`${chart.canvas.id}-legend`);
+                if (!legendContainer) return;
+                legendContainer.innerHTML = ''; // Limpa legenda anterior
+                const datasets = chart.data.datasets;
+
+                datasets.forEach((dataset, index) => {
+                    const legendItem = document.createElement('div');
+                    legendItem.className = 'flex items-center cursor-pointer';
+                    legendItem.onclick = () => {
+                        const meta = chart.getDatasetMeta(index);
+                        meta.hidden = meta.hidden === null ? !chart.data.datasets[index].hidden : null;
+                        chart.update();
+                    };
+
+                    const colorBox = document.createElement('span');
+                    colorBox.className = 'w-4 h-4 mr-2 rounded';
+                    colorBox.style.backgroundColor = dataset.borderColor;
+
+                    const text = document.createElement('span');
+                    text.className = 'text-sm text-gray-700 dark:text-gray-300';
+                    text.innerText = dataset.label;
+
+                    legendItem.appendChild(colorBox);
+                    legendItem.appendChild(text);
+                    legendContainer.appendChild(legendItem);
+                });
+            }
+
+            // --- LÓGICA DAS ABAS ---
+            function setupTabs() {
+                const tabs = document.querySelectorAll('[role="tab"]');
+                const tabContents = document.querySelectorAll('[role="tabpanel"]');
+
+                tabs.forEach(tab => {
+                    tab.addEventListener('click', () => {
+                        tabs.forEach(t => t.classList.replace('tab-active', 'tab-inactive'));
+                        tab.classList.replace('tab-inactive', 'tab-active');
+
+                        tabContents.forEach(content => {
+                            if (content.id === tab.id.replace('-tab', '-content')) {
+                                content.classList.remove('hidden');
+                            } else {
+                                content.classList.add('hidden');
+                            }
+                        });
+                    });
+                });
+            }
+
+            // --- INICIALIZAÇÃO ---
+            function renderDashboard() {
+                const totalColetadoJulho = performanceData.reduce((sum, item) => sum + item.realAte16, 0);
+                const metaTotal = 68362;
+                const percentualMetaAtingida = (totalColetadoJulho / metaTotal) * 100;
+                const totalBacklog = performanceData.reduce((sum, item) => sum + item.backlog, 0);
+                const totalColetadoDia16 = performanceData.reduce((sum, item) => sum + (item.coletasDiarias[15] || 0), 0);
+                const melhorCanal = performanceData.filter(item => item.backlog > 0).reduce((prev, current) => ((prev.realAte16 / prev.backlog) > (current.realAte16 / current.backlog)) ? prev : current);
+                const melhorCanalPercent = melhorCanal.backlog > 0 ? (melhorCanal.realAte16 / melhorCanal.backlog) * 100 : 0;
+
+                const kpiGrid = document.getElementById('kpi-grid');
+                kpiGrid.innerHTML = `
+                    ${createKpiCard('Total Coletado (Julho)', formatNumber(totalColetadoJulho), 'bar-chart', 'text-blue-500', `Coletado em 16/Jul: ${formatNumber(totalColetadoDia16)}`)}
+                    ${createKpiCard('% Meta do Mês Atingida', `${percentualMetaAtingida.toFixed(1)}%`, 'target', 'text-green-500', `(${formatNumber(totalColetadoJulho)} / ${formatNumber(metaTotal)})`)}
+                    ${createKpiCard('Total Backlog', formatNumber(totalBacklog), 'calendar-days', 'text-amber-500', 'Soma do backlog de todos os canais')}
+                    ${createKpiCard('Melhor Canal (Meta %)', melhorCanal.canal, 'trending-up', 'text-purple-500', `Com ${melhorCanalPercent.toFixed(0)}% da meta atingida`)}
+                `;
+
+                const tableHead = document.getElementById('dashboard-table-head');
+                tableHead.innerHTML = `
+                    <tr>
+                        <th scope="col" class="px-6 py-4 sticky-col bg-gray-100 dark:bg-gray-700">Canal</th>
+                        <th scope="col" class="px-6 py-4 text-center">Coletado (Jul)</th>
+                        <th scope="col" class="px-6 py-4 text-center min-w-[200px]">% Meta</th>
+                        <th scope="col" class="px-6 py-4 text-center min-w-[150px]">Tendência Diária (Jul)</th>
+                        ${dias.map(dia => `<th scope="col" class="px-4 py-4 text-center font-mono">${dia.split('/')[0]}</th>`).join('')}
+                    </tr>
+                `;
+
+                const tableBody = document.getElementById('performance-table-body');
+                tableBody.innerHTML = performanceData.map(item => {
+                    const metaPercent = item.backlog > 0 ? item.realAte16 / item.backlog : 0;
+                    const progressBarColor = metaPercent >= 1 ? 'bg-green-500' : 'bg-yellow-500';
+                    const sparklineColor = metaPercent >= 1 ? '#22c55e' : '#f59e0b';
+                    return `
+                        <tr class="bg-white dark:bg-gray-800 border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors duration-150">
+                            <th scope="row" class="px-6 py-4 font-bold text-gray-900 dark:text-white whitespace-nowrap sticky-col bg-white dark:bg-gray-800">${item.canal}</th>
+                            <td class="px-6 py-4 text-center font-medium text-gray-800 dark:text-gray-200">${formatNumber(item.realAte16)}</td>
+                            <td class="px-6 py-4">
+                                <div class="flex flex-col items-center justify-center">
+                                    <div class="text-xs text-gray-500 dark:text-gray-400 mb-1">(${formatNumber(item.realAte16)} / ${formatNumber(item.backlog)})</div>
+                                    <div class="flex items-center justify-center gap-2 w-full">
+                                        <span class="font-bold text-base ${getMetaColorClass(metaPercent)} w-12 text-right">${(metaPercent * 100).toFixed(0)}%</span>
+                                        <div class="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-2.5">
+                                            <div class="${progressBarColor}" style="width: ${Math.min(metaPercent * 100, 100)}%; height: 100%; border-radius: 9999px;"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="px-6 py-4"><div class="flex justify-center items-center">${createSparkline(item.coletasDiarias, 120, 30, sparklineColor, item.id)}</div></td>
+                            ${item.coletasDiarias.map(coleta => `<td class="px-4 py-4 text-center font-mono text-gray-600 dark:text-gray-300">${coleta > 0 ? formatNumber(coleta) : '-'}</td>`).join('')}
+                        </tr>
+                    `;
+                }).join('');
+                initializeSparklineTooltips();
+            }
+            function renderForecast() {
+                 const diasJulho = Array.from({ length: 31 }, (_, i) => i + 1);
+                const finsDeSemana = [20, 21, 27, 28]; // Ajustado para fins de semana de Julho 2024 (exemplo)
+
+                const tableHead = document.getElementById('forecast-table-head');
+                tableHead.innerHTML = `
+                    <tr>
+                        <th scope="col" class="px-6 py-4 sticky-col bg-gray-100 dark:bg-gray-700">Canal</th>
+                        <th scope="col" class="px-6 py-4 text-center min-w-[150px]">Total Previsto</th>
+                        <th scope="col" class="px-6 py-4 text-center min-w-[150px]">% Meta Prevista</th>
+                        ${diasJulho.map(dia => `<th scope="col" class="px-4 py-4 text-center font-mono ${[6,7,13,14,20,21,27,28].includes(dia) ? 'text-red-400' : ''}">${String(dia).padStart(2, '0')}</th>`).join('')}
+                    </tr>
+                `;
+
+                const tableBody = document.getElementById('forecast-table-body');
+                tableBody.innerHTML = performanceData.map(item => {
+                    const activeDays = item.coletasDiarias.filter(d => d > 0).length;
+                    const dailyAverage = activeDays > 0 ? item.realAte16 / activeDays : 0;
+                    
+                    let forecastSum = 0;
+                    const forecastValues = diasJulho.slice(16).map(dia => {
+                        if ([20, 21, 27, 28].includes(dia)) { // Exemplo de fins de semana
+                            return 0;
+                        }
+                        const forecastValue = Math.round(dailyAverage);
+                        forecastSum += forecastValue;
+                        return forecastValue;
+                    });
+
+                    const totalPrevisto = item.realAte16 + forecastSum;
+                    const metaPercentPrevista = item.backlog > 0 ? totalPrevisto / item.backlog : 0;
+
+                    const dailyCells = diasJulho.map((dia, index) => {
+                        if (index < 16) {
+                            const coleta = item.coletasDiarias[index];
+                            return `<td class="px-4 py-4 text-center font-mono text-gray-600 dark:text-gray-300">${coleta > 0 ? formatNumber(coleta) : '-'}</td>`;
+                        } else {
+                            const forecastValue = forecastValues[index - 16];
+                            return `<td class="px-4 py-4 text-center font-mono text-blue-400 dark:text-blue-500 italic opacity-75">${forecastValue > 0 ? formatNumber(forecastValue) : '-'}</td>`;
+                        }
+                    }).join('');
+
+                    return `
+                         <tr class="bg-white dark:bg-gray-800 border-b dark:border-gray-700">
+                            <th scope="row" class="px-6 py-4 font-bold text-gray-900 dark:text-white whitespace-nowrap sticky-col bg-white dark:bg-gray-800">${item.canal}</th>
+                            <td class="px-6 py-4 text-center font-medium text-gray-800 dark:text-gray-200">${formatNumber(totalPrevisto)}</td>
+                            <td class="px-6 py-4 text-center font-bold ${getMetaColorClass(metaPercentPrevista)}">${(metaPercentPrevista * 100).toFixed(0)}%</td>
+                            ${dailyCells}
+                        </tr>
+                    `;
+                }).join('');
+            }
+            function initializeSparklineTooltips() {
+                const containers = document.querySelectorAll('.sparkline-container');
+                containers.forEach(container => {
+                    const overlay = container.querySelector('.sparkline-overlay');
+                    if(overlay.dataset.initialized) return;
+                    overlay.dataset.initialized = true;
+
+                    const tooltip = container.querySelector('.sparkline-tooltip');
+                    const cursorLine = container.querySelector('.sparkline-cursor-line');
+                    const cursorDot = container.querySelector('.sparkline-cursor-dot');
+                    const svg = container.querySelector('svg');
+                    const width = svg.getAttribute('width');
+                    const height = svg.getAttribute('height');
+
+                    const dataId = parseInt(container.getAttribute('data-id'));
+                    const itemData = performanceData.find(d => d.id === dataId);
+                    if (!itemData) return;
+
+                    const data = itemData.coletasDiarias;
+                    const maxVal = Math.max(...data);
+                    const minVal = Math.min(...data);
+                    const range = maxVal - minVal === 0 ? 1 : maxVal - minVal;
+
+                    overlay.addEventListener('mousemove', (e) => {
+                        const rect = overlay.getBoundingClientRect();
+                        const x = e.clientX - rect.left;
+                        const index = Math.round((x / width) * (data.length - 1));
+                        const value = data[index];
+                        const day = dias[index];
+                        const pointX = (index / (data.length - 1)) * width;
+                        const pointY = height - ((value - minVal) / range) * height;
+                        cursorLine.setAttribute('x1', pointX);
+                        cursorLine.setAttribute('x2', pointX);
+                        cursorLine.style.display = 'block';
+                        cursorDot.setAttribute('cx', pointX);
+                        cursorDot.setAttribute('cy', pointY);
+                        cursorDot.style.display = 'block';
+                        tooltip.innerHTML = `<strong>${day}:</strong> ${formatNumber(value)}`;
+                        tooltip.style.display = 'block';
+                        tooltip.style.left = `${x + 10}px`;
+                        tooltip.style.top = `${e.clientY - rect.top}px`;
+                    });
+
+                    overlay.addEventListener('mouseleave', () => {
+                        tooltip.style.display = 'none';
+                        cursorLine.style.display = 'none';
+                        cursorDot.style.display = 'none';
+                    });
+                });
+            }
+
+            renderDashboard();
+            renderForecast();
+            renderPlacarReversa();
+            renderResultadosPremium();
+            setupTabs();
+            lucide.createIcons();
+        });
+    </script>
+</body>
+</html>
